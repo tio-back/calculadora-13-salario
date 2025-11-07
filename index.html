@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calculadora de Décimo Terceiro</title>
   <script src="/_sdk/element_sdk.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body {
       box-sizing: border-box;
@@ -1046,8 +1046,8 @@
     document.getElementById('pdfBtn').addEventListener('click', async function() {
       if (!calculationResult) return;
 
-      // Verificar se jsPDF está disponível
-      if (!window.jspdf) {
+      // Verificar se html2pdf está disponível
+      if (!window.html2pdf) {
         const errorMsg = document.createElement('div');
         errorMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
         errorMsg.textContent = '❌ Biblioteca PDF não carregada. Recarregue a página.';
@@ -1066,311 +1066,168 @@
         // Aguardar um momento para mostrar o loading
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        const doc = new window.jspdf.jsPDF();
+        // Criar uma versão otimizada para PDF
+        const pdfContainer = document.createElement('div');
+        pdfContainer.style.cssText = `
+          width: 210mm;
+          min-height: 297mm;
+          padding: 20mm;
+          background: white;
+          font-family: 'Inter', Arial, sans-serif;
+          color: #000;
+          box-sizing: border-box;
+          position: absolute;
+          left: -9999px;
+          top: 0;
+        `;
+
         const config = window.elementSdk ? window.elementSdk.config : defaultConfig;
         const companyName = config.company_name || defaultConfig.company_name;
 
-        // Função para desenhar retângulo com gradiente simulado
-        function drawGradientRect(x, y, width, height, color1, color2) {
-          const steps = 20;
-          const stepHeight = height / steps;
-          
-          for (let i = 0; i < steps; i++) {
-            const ratio = i / (steps - 1);
-            const r = Math.round(color1.r + (color2.r - color1.r) * ratio);
-            const g = Math.round(color1.g + (color2.g - color1.g) * ratio);
-            const b = Math.round(color1.b + (color2.b - color1.b) * ratio);
-            
-            doc.setFillColor(r, g, b);
-            doc.rect(x, y + i * stepHeight, width, stepHeight, 'F');
+        pdfContainer.innerHTML = `
+          <!-- Cabeçalho -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 12px; margin-bottom: 25px;">
+            <h1 style="margin: 0 0 10px 0; font-size: 28px; font-weight: 700;">${companyName}</h1>
+            <p style="margin: 0; font-size: 18px; opacity: 0.95;">Cálculo de Décimo Terceiro Salário</p>
+          </div>
+
+          <!-- Informações do Funcionário -->
+          <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #e0f2fe;">
+            <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 18px;">👤 Informações do Funcionário</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div>
+                <strong>Nome:</strong> ${calculationResult.employeeName}<br>
+                <strong>Salário Base:</strong> ${formatCurrency(calculationResult.salary)}
+              </div>
+              <div>
+                <strong>Data de Admissão:</strong> ${new Date(calculationResult.admissionDate).toLocaleDateString('pt-BR')}<br>
+                <strong>Data do Cálculo:</strong> ${new Date(calculationResult.calculationDate).toLocaleDateString('pt-BR')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Meses Trabalhados -->
+          <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #e0f2fe;">
+            <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 18px;">📅 Meses Trabalhados no Ano</h3>
+            <div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; margin-bottom: 15px;">
+              ${generateMonthsForPDF()}
+            </div>
+            <div style="display: flex; gap: 20px; justify-content: center; font-size: 14px;">
+              <span><span style="display: inline-block; width: 16px; height: 16px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 4px; margin-right: 8px; vertical-align: middle;"></span>Meses trabalhados</span>
+              <span><span style="display: inline-block; width: 16px; height: 16px; background: linear-gradient(135deg, #e5e7eb, #d1d5db); border-radius: 4px; margin-right: 8px; vertical-align: middle;"></span>Meses não trabalhados</span>
+            </div>
+          </div>
+
+          <!-- Cálculo Passo a Passo -->
+          <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #e0f2fe;">
+            <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 18px;">🧮 Como Chegamos no Valor</h3>
+            ${generateCalculationStepsForPDF()}
+          </div>
+
+          ${calculationResult.deductInss && calculationResult.inssValue > 0 ? `
+          <!-- Gráfico de Pizza -->
+          <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #e0f2fe;">
+            <h3 style="color: #0c4a6e; margin: 0 0 15px 0; font-size: 18px;">💰 Composição do Valor</h3>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 30px;">
+              <div style="position: relative;">
+                ${generatePieChartSVGForPDF()}
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 20px; height: 20px; background: #10b981; border-radius: 4px;"></div>
+                  <div>
+                    <div style="font-weight: 500; color: #374151;">Valor Líquido:</div>
+                    <div style="font-weight: 600; color: #059669;">${formatCurrency(calculationResult.proportionalValue - calculationResult.inssValue)} (${((calculationResult.proportionalValue - calculationResult.inssValue) / calculationResult.proportionalValue * 100).toFixed(1)}%)</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 20px; height: 20px; background: #ef4444; border-radius: 4px;"></div>
+                  <div>
+                    <div style="font-weight: 500; color: #374151;">Desconto INSS:</div>
+                    <div style="font-weight: 600; color: #059669;">${formatCurrency(calculationResult.inssValue)} (${(calculationResult.inssValue / calculationResult.proportionalValue * 100).toFixed(1)}%)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+
+          <!-- Resultado Final -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+            <h2 style="margin: 0 0 10px 0; font-size: 24px;">💰 VALOR FINAL A PAGAR</h2>
+            <div style="font-size: 32px; font-weight: 700; margin: 0;">${formatCurrency(calculationResult.finalValue)}</div>
+          </div>
+
+          <!-- Resumo dos Valores -->
+          <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+            <div style="display: grid; gap: 12px;">
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(12, 74, 110, 0.1);">
+                <span style="color: #0c4a6e; font-weight: 500;">Salário Base:</span>
+                <span style="color: #0369a1; font-weight: 600;">${formatCurrency(calculationResult.salary)}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(12, 74, 110, 0.1);">
+                <span style="color: #0c4a6e; font-weight: 500;">Meses Trabalhados:</span>
+                <span style="color: #0369a1; font-weight: 600;">${calculationResult.monthsWorked} ${calculationResult.monthsWorked === 1 ? 'mês' : 'meses'}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(12, 74, 110, 0.1);">
+                <span style="color: #0c4a6e; font-weight: 500;">Décimo Terceiro Proporcional:</span>
+                <span style="color: #0369a1; font-weight: 600;">${formatCurrency(calculationResult.proportionalValue)}</span>
+              </div>
+              ${calculationResult.deductInss && calculationResult.inssValue > 0 ? `
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(12, 74, 110, 0.1);">
+                <span style="color: #0c4a6e; font-weight: 500;">Desconto INSS:</span>
+                <span style="color: #0369a1; font-weight: 600;">${formatCurrency(calculationResult.inssValue)}</span>
+              </div>
+              ` : ''}
+              <div style="display: flex; justify-content: space-between; padding: 15px 20px; background: white; border-radius: 12px; margin-top: 10px;">
+                <span style="color: #667eea; font-weight: 500; font-size: 18px;">Valor a Pagar:</span>
+                <span style="color: #667eea; font-weight: 600; font-size: 22px;">${formatCurrency(calculationResult.finalValue)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rodapé -->
+          <div style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 5px 0;">📄 Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+            <p style="margin: 5px 0;">🏢 Sistema de Cálculo de Décimo Terceiro Salário</p>
+          </div>
+        `;
+
+        document.body.appendChild(pdfContainer);
+
+        // Configurações do html2pdf
+        const options = {
+          margin: 0,
+          filename: `decimo-terceiro-${calculationResult.employeeName.replace(/\s+/g, '-').toLowerCase()}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            width: 794, // A4 width in pixels at 96 DPI
+            height: 1123 // A4 height in pixels at 96 DPI
+          },
+          jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait',
+            compress: true
           }
-        }
+        };
 
-        // Função para desenhar caixa com sombra
-        function drawBoxWithShadow(x, y, width, height, fillColor, shadowOffset = 2) {
-          // Sombra
-          doc.setFillColor(200, 200, 200);
-          doc.roundedRect(x + shadowOffset, y + shadowOffset, width, height, 3, 3, 'F');
-          
-          // Caixa principal
-          doc.setFillColor(fillColor.r, fillColor.g, fillColor.b);
-          doc.roundedRect(x, y, width, height, 3, 3, 'F');
-          
-          // Borda
-          doc.setDrawColor(230, 230, 230);
-          doc.setLineWidth(0.5);
-          doc.roundedRect(x, y, width, height, 3, 3, 'S');
-        }
+        // Gerar e baixar o PDF
+        await html2pdf().set(options).from(pdfContainer).save();
 
-        // CABEÇALHO COM GRADIENTE
-        drawGradientRect(0, 0, 210, 50, {r: 102, g: 126, b: 234}, {r: 118, g: 75, b: 162});
-        
-        // Texto do cabeçalho
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(24);
-        doc.setFont(undefined, 'bold');
-        doc.text(companyName, 105, 25, { align: 'center' });
-        
-        doc.setFontSize(16);
-        doc.setFont(undefined, 'normal');
-        doc.text('Cálculo de Décimo Terceiro Salário', 105, 40, { align: 'center' });
-
-        let y = 65;
-
-        // SEÇÃO DE INFORMAÇÕES DO FUNCIONÁRIO
-        drawBoxWithShadow(15, y, 180, 35, {r: 240, g: 249, b: 255});
-        
-        doc.setTextColor(12, 74, 110);
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('👤 Informações do Funcionário', 20, y + 10);
-        
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'normal');
-        doc.text(`Nome: ${calculationResult.employeeName}`, 25, y + 18);
-        doc.text(`Salário: ${formatCurrency(calculationResult.salary)}`, 25, y + 25);
-        doc.text(`Admissão: ${new Date(calculationResult.admissionDate).toLocaleDateString('pt-BR')}`, 120, y + 18);
-        doc.text(`Cálculo: ${new Date(calculationResult.calculationDate).toLocaleDateString('pt-BR')}`, 120, y + 25);
-
-        y += 50;
-
-        // GRÁFICO VISUAL DOS MESES
-        drawBoxWithShadow(15, y, 180, 45, {r: 255, g: 255, b: 255});
-        
-        doc.setTextColor(12, 74, 110);
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('📅 Meses Trabalhados no Ano', 20, y + 10);
-
-        // Desenhar os meses como quadrados coloridos
-        const monthNames = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
-        const admission = new Date(calculationResult.admissionDate);
-        const calculation = new Date(calculationResult.calculationDate);
-        const yearStart = new Date(calculation.getFullYear(), 0, 1);
-
-        for (let i = 0; i < 12; i++) {
-          let isWorked = false;
-          
-          if (admission < yearStart) {
-            if (i <= calculation.getMonth()) {
-              if (i === calculation.getMonth()) {
-                isWorked = calculation.getDate() >= 15;
-              } else {
-                isWorked = true;
-              }
-            }
-          } else {
-            if (i >= admission.getMonth() && i <= calculation.getMonth()) {
-              if (i === admission.getMonth()) {
-                const daysInMonth = new Date(admission.getFullYear(), admission.getMonth() + 1, 0).getDate();
-                const daysWorked = daysInMonth - admission.getDate() + 1;
-                isWorked = daysWorked >= 15;
-              } else if (i === calculation.getMonth()) {
-                isWorked = calculation.getDate() >= 15;
-              } else {
-                isWorked = true;
-              }
-            }
-          }
-
-          const boxX = 25 + (i * 14);
-          const boxY = y + 18;
-          
-          if (isWorked) {
-            doc.setFillColor(16, 185, 129); // Verde
-          } else {
-            doc.setFillColor(229, 231, 235); // Cinza
-          }
-          
-          doc.roundedRect(boxX, boxY, 12, 12, 2, 2, 'F');
-          
-          // Texto do mês
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(8);
-          doc.setFont(undefined, 'bold');
-          doc.text(monthNames[i], boxX + 6, boxY + 8, { align: 'center' });
-        }
-
-        // Legenda
-        doc.setTextColor(100, 100, 100);
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'normal');
-        doc.setFillColor(16, 185, 129);
-        doc.rect(25, y + 35, 8, 6, 'F');
-        doc.text('Trabalhados', 38, y + 39);
-        
-        doc.setFillColor(229, 231, 235);
-        doc.rect(100, y + 35, 8, 6, 'F');
-        doc.text('Não trabalhados', 113, y + 39);
-
-        y += 60;
-
-        // CÁLCULO PASSO A PASSO
-        drawBoxWithShadow(15, y, 180, 70, {r: 248, g: 250, b: 252});
-        
-        doc.setTextColor(12, 74, 110);
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('🧮 Cálculo Detalhado', 20, y + 12);
-
-        // Passo 1
-        doc.setFillColor(102, 126, 234);
-        doc.circle(25, y + 22, 3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text('1', 25, y + 24, { align: 'center' });
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.text('Décimo Terceiro Proporcional:', 32, y + 24);
-        
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(10);
-        doc.text(`${formatCurrency(calculationResult.salary)} ÷ 12 × ${calculationResult.monthsWorked} meses = ${formatCurrency(calculationResult.proportionalValue)}`, 32, y + 32);
-
-        // Passo 2
-        doc.setFillColor(102, 126, 234);
-        doc.circle(25, y + 42, 3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(10);
-        doc.setFont(undefined, 'bold');
-        doc.text('2', 25, y + 44, { align: 'center' });
-
-        const installmentText = calculationResult.installment === 'primeira' ? 'Primeira Parcela (50%)' :
-                               calculationResult.installment === 'segunda' ? 'Segunda Parcela (50%)' : 'Parcela Integral (100%)';
-        
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.text(installmentText, 32, y + 44);
-
-        if (calculationResult.installment !== 'integral') {
-          doc.setFont(undefined, 'normal');
-          doc.setFontSize(10);
-          doc.text(`${formatCurrency(calculationResult.proportionalValue)} ÷ 2 = ${formatCurrency(calculationResult.proportionalValue / 2)}`, 32, y + 52);
-        }
-
-        // Passo 3 - INSS (se aplicável)
-        if (calculationResult.deductInss && calculationResult.inssValue > 0) {
-          doc.setFillColor(102, 126, 234);
-          doc.circle(25, y + 62, 3, 'F');
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(10);
-          doc.setFont(undefined, 'bold');
-          doc.text('3', 25, y + 64, { align: 'center' });
-
-          doc.setTextColor(0, 0, 0);
-          doc.setFontSize(11);
-          doc.setFont(undefined, 'bold');
-          doc.text(`Desconto INSS: ${formatCurrency(calculationResult.inssValue)}`, 32, y + 64);
-        }
-
-        y += 85;
-
-        // GRÁFICO DE PIZZA (se houver INSS)
-        if (calculationResult.deductInss && calculationResult.inssValue > 0) {
-          drawBoxWithShadow(15, y, 85, 50, {r: 255, g: 255, b: 255});
-          
-          doc.setTextColor(12, 74, 110);
-          doc.setFontSize(12);
-          doc.setFont(undefined, 'bold');
-          doc.text('💰 Composição', 20, y + 10);
-
-          // Desenhar gráfico de pizza simples
-          const centerX = 57;
-          const centerY = y + 30;
-          const radius = 15;
-          
-          const total = calculationResult.proportionalValue;
-          const netValue = total - calculationResult.inssValue;
-          const inssPercentage = (calculationResult.inssValue / total) * 100;
-          const netPercentage = (netValue / total) * 100;
-
-          // Fatia verde (valor líquido)
-          const netAngle = (netPercentage / 100) * 360;
-          doc.setFillColor(16, 185, 129);
-          
-          // Desenhar fatia como polígono aproximado
-          const points = [];
-          points.push([centerX, centerY]);
-          for (let angle = 0; angle <= netAngle; angle += 10) {
-            const radian = (angle - 90) * Math.PI / 180;
-            const x = centerX + radius * Math.cos(radian);
-            const y = centerY + radius * Math.sin(radian);
-            points.push([x, y]);
-          }
-          
-          if (points.length > 2) {
-            doc.setFillColor(16, 185, 129);
-            doc.triangle(points[0][0], points[0][1], points[1][0], points[1][1], points[points.length-1][0], points[points.length-1][1], 'F');
-          }
-
-          // Fatia vermelha (INSS)
-          doc.setFillColor(239, 68, 68);
-          const inssPoints = [];
-          inssPoints.push([centerX, centerY]);
-          for (let angle = netAngle; angle <= 360; angle += 10) {
-            const radian = (angle - 90) * Math.PI / 180;
-            const x = centerX + radius * Math.cos(radian);
-            const y = centerY + radius * Math.sin(radian);
-            inssPoints.push([x, y]);
-          }
-          
-          if (inssPoints.length > 2) {
-            doc.triangle(inssPoints[0][0], inssPoints[0][1], inssPoints[1][0], inssPoints[1][1], inssPoints[inssPoints.length-1][0], inssPoints[inssPoints.length-1][1], 'F');
-          }
-
-          // Legenda do gráfico
-          doc.setFillColor(16, 185, 129);
-          doc.rect(105, y + 20, 6, 4, 'F');
-          doc.setTextColor(0, 0, 0);
-          doc.setFontSize(9);
-          doc.text(`Líquido: ${formatCurrency(netValue)}`, 115, y + 23);
-          
-          doc.setFillColor(239, 68, 68);
-          doc.rect(105, y + 30, 6, 4, 'F');
-          doc.text(`INSS: ${formatCurrency(calculationResult.inssValue)}`, 115, y + 33);
-
-          y += 60;
-        }
-
-        // RESULTADO FINAL COM DESTAQUE
-        drawGradientRect(15, y, 180, 25, {r: 102, g: 126, b: 234}, {r: 118, g: 75, b: 162});
-        
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(18);
-        doc.setFont(undefined, 'bold');
-        doc.text('💰 VALOR FINAL A PAGAR', 25, y + 10);
-        doc.setFontSize(20);
-        doc.text(formatCurrency(calculationResult.finalValue), 25, y + 20);
-
-        // Rodapé elegante
-        y = 270;
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.5);
-        doc.line(20, y, 190, y);
-        
-        doc.setTextColor(120, 120, 120);
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'normal');
-        doc.text(`📄 Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 105, y + 8, { align: 'center' });
-        doc.text('🏢 Sistema de Cálculo de Décimo Terceiro Salário', 105, y + 15, { align: 'center' });
-
-        // Gerar o nome do arquivo
-        const fileName = `decimo-terceiro-${calculationResult.employeeName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-        
-        // Salvar o PDF - forçar download
-        doc.save(fileName);
+        // Remover o container temporário
+        document.body.removeChild(pdfContainer);
         
         // Remover loading e mostrar sucesso
         loadingMsg.remove();
         
         const successMsg = document.createElement('div');
         successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
-        successMsg.innerHTML = `✅ PDF baixado: ${fileName}`;
+        successMsg.innerHTML = `✅ PDF baixado com sucesso!`;
         document.body.appendChild(successMsg);
         setTimeout(() => successMsg.remove(), 4000);
         
@@ -1391,8 +1248,206 @@
       }
     });
 
+    // Funções auxiliares para geração do PDF
+    function generateMonthsForPDF() {
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const admission = new Date(calculationResult.admissionDate);
+      const calculation = new Date(calculationResult.calculationDate);
+      const yearStart = new Date(calculation.getFullYear(), 0, 1);
+      
+      let html = '';
+      
+      for (let i = 0; i < 12; i++) {
+        let isWorked = false;
+        
+        if (admission < yearStart) {
+          if (i <= calculation.getMonth()) {
+            if (i === calculation.getMonth()) {
+              isWorked = calculation.getDate() >= 15;
+            } else {
+              isWorked = true;
+            }
+          }
+        } else {
+          if (i >= admission.getMonth() && i <= calculation.getMonth()) {
+            if (i === admission.getMonth()) {
+              const daysInMonth = new Date(admission.getFullYear(), admission.getMonth() + 1, 0).getDate();
+              const daysWorked = daysInMonth - admission.getDate() + 1;
+              isWorked = daysWorked >= 15;
+            } else if (i === calculation.getMonth()) {
+              isWorked = calculation.getDate() >= 15;
+            } else {
+              isWorked = true;
+            }
+          }
+        }
+        
+        const bgColor = isWorked ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #e5e7eb, #d1d5db)';
+        const textColor = isWorked ? 'white' : '#6b7280';
+        
+        html += `
+          <div style="
+            aspect-ratio: 1;
+            background: ${bgColor};
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: ${textColor};
+            text-shadow: ${isWorked ? '0 1px 2px rgba(0, 0, 0, 0.3)' : 'none'};
+          ">${monthNames[i]}</div>
+        `;
+      }
+      
+      return html;
+    }
+
+    function generateCalculationStepsForPDF() {
+      let html = '';
+      
+      // Passo 1
+      html += `
+        <div style="display: flex; align-items: flex-start; padding: 15px; margin-bottom: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #667eea;">
+          <div style="background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; margin-right: 15px; flex-shrink: 0;">1</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; margin-bottom: 8px;">Cálculo do Décimo Terceiro Proporcional</div>
+            <div style="font-family: 'Courier New', monospace; background: #e0f2fe; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 14px; color: #0c4a6e;">
+              Décimo Terceiro = (Salário ÷ 12) × Meses Trabalhados
+            </div>
+            <div style="font-family: 'Courier New', monospace; background: #e0f2fe; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 14px; color: #0c4a6e;">
+              ${formatCurrency(calculationResult.salary)} ÷ 12 × ${calculationResult.monthsWorked} = ${formatCurrency(calculationResult.proportionalValue)}
+            </div>
+            <div style="font-weight: 600; color: #059669; font-size: 16px;">Valor Proporcional: ${formatCurrency(calculationResult.proportionalValue)}</div>
+          </div>
+        </div>
+      `;
+      
+      // Passo 2
+      let installmentText = '';
+      let installmentCalc = '';
+      
+      if (calculationResult.installment === 'primeira') {
+        installmentText = 'Primeira Parcela (Adiantamento) - 50% do valor';
+        installmentCalc = `${formatCurrency(calculationResult.proportionalValue)} ÷ 2 = ${formatCurrency(calculationResult.proportionalValue / 2)}`;
+      } else if (calculationResult.installment === 'segunda') {
+        installmentText = 'Segunda Parcela (Final) - 50% do valor';
+        installmentCalc = `${formatCurrency(calculationResult.proportionalValue)} ÷ 2 = ${formatCurrency(calculationResult.proportionalValue / 2)}`;
+      } else {
+        installmentText = 'Parcela Integral - 100% do valor';
+        installmentCalc = `Valor integral: ${formatCurrency(calculationResult.proportionalValue)}`;
+      }
+      
+      html += `
+        <div style="display: flex; align-items: flex-start; padding: 15px; margin-bottom: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #667eea;">
+          <div style="background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; margin-right: 15px; flex-shrink: 0;">2</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; margin-bottom: 8px;">${installmentText}</div>
+            <div style="font-family: 'Courier New', monospace; background: #e0f2fe; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 14px; color: #0c4a6e;">
+              ${installmentCalc}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Passo 3 - INSS (se aplicável)
+      if (calculationResult.deductInss && calculationResult.inssValue > 0) {
+        const inssDetails = generateINSSCalculationDetails(calculationResult.proportionalValue);
+        
+        let inssCalculationHTML = `
+          <div style="display: flex; align-items: flex-start; padding: 15px; margin-bottom: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #667eea;">
+            <div style="background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; margin-right: 15px; flex-shrink: 0;">3</div>
+            <div style="flex: 1;">
+              <div style="font-weight: 600; margin-bottom: 8px;">Cálculo Detalhado do INSS</div>
+              <div style="margin: 12px 0; padding: 12px; background: #f1f5f9; border-radius: 6px; border-left: 3px solid #0369a1;">
+                <div style="font-weight: 600; color: #0369a1; margin-bottom: 8px;">📊 Tabela INSS 2025 - Cálculo Progressivo:</div>
+        `;
+
+        inssDetails.details.forEach((detail, index) => {
+          const percentage = (detail.rate * 100).toFixed(1);
+          inssCalculationHTML += `
+            <div style="margin: 8px 0; padding: 8px; background: white; border-radius: 4px;">
+              <div style="font-size: 14px; color: #374151; margin-bottom: 4px;">
+                <strong>Faixa ${index + 1}:</strong> ${detail.description}
+              </div>
+              <div style="font-family: 'Courier New', monospace; font-size: 13px; color: #0c4a6e;">
+                ${formatCurrency(detail.taxableAmount)} × ${percentage}% = ${formatCurrency(detail.inssAmount)}
+              </div>
+            </div>
+          `;
+        });
+
+        inssCalculationHTML += `
+              </div>
+              <div style="font-family: 'Courier New', monospace; background: #e0f2fe; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 14px; color: #0c4a6e;">
+                Total INSS: ${formatCurrency(inssDetails.totalInss)}
+              </div>
+              <div style="font-family: 'Courier New', monospace; background: #e0f2fe; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 14px; color: #0c4a6e;">
+                Valor após desconto: ${formatCurrency(calculationResult.proportionalValue / (calculationResult.installment === 'integral' ? 1 : 2))} - ${formatCurrency(calculationResult.inssValue)} = ${formatCurrency(calculationResult.finalValue)}
+              </div>
+            </div>
+          </div>
+        `;
+
+        html += inssCalculationHTML;
+      }
+      
+      // Passo final
+      html += `
+        <div style="display: flex; align-items: flex-start; padding: 15px; margin-bottom: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #667eea;">
+          <div style="background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; margin-right: 15px; flex-shrink: 0;">✓</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; margin-bottom: 8px;">Valor Final a Pagar</div>
+            <div style="font-weight: 600; color: #059669; font-size: 18px;">${formatCurrency(calculationResult.finalValue)}</div>
+          </div>
+        </div>
+      `;
+      
+      return html;
+    }
+
+    function generatePieChartSVGForPDF() {
+      const total = calculationResult.proportionalValue;
+      const netValue = total - calculationResult.inssValue;
+      const inssPercentage = (calculationResult.inssValue / total) * 100;
+      const netPercentage = (netValue / total) * 100;
+
+      const radius = 80;
+      const centerX = 100;
+      const centerY = 100;
+
+      // Fatia do valor líquido
+      const netAngle = (netPercentage / 100) * 360;
+      const netPath = createPieSliceForPDF(centerX, centerY, radius, 0, netAngle);
+
+      // Fatia do INSS
+      const inssPath = createPieSliceForPDF(centerX, centerY, radius, netAngle, 360);
+
+      return `
+        <svg width="200" height="200" viewBox="0 0 200 200" style="filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));">
+          <path d="${netPath}" fill="#10b981" stroke="white" stroke-width="2"/>
+          <path d="${inssPath}" fill="#ef4444" stroke="white" stroke-width="2"/>
+        </svg>
+      `;
+    }
+
+    function createPieSliceForPDF(centerX, centerY, radius, startAngle, endAngle) {
+      const startAngleRad = (startAngle - 90) * Math.PI / 180;
+      const endAngleRad = (endAngle - 90) * Math.PI / 180;
+      
+      const x1 = centerX + radius * Math.cos(startAngleRad);
+      const y1 = centerY + radius * Math.sin(startAngleRad);
+      const x2 = centerX + radius * Math.cos(endAngleRad);
+      const y2 = centerY + radius * Math.sin(endAngleRad);
+      
+      const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+      
+      return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+    }
+
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('calculationDate').value = today;
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'99ad7bfab2fcae1a',t:'MTc2MjUyNTM2Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'99ad95925687ae1a',t:'MTc2MjUyNjQxMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
