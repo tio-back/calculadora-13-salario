@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calculadora de Décimo Terceiro</title>
   <script src="/_sdk/element_sdk.js"></script>
-  <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       box-sizing: border-box;
@@ -1043,23 +1043,30 @@
       calculationResult = null;
     });
 
-    document.getElementById('pdfBtn').addEventListener('click', function() {
+    document.getElementById('pdfBtn').addEventListener('click', async function() {
       if (!calculationResult) return;
 
       // Verificar se jsPDF está disponível
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        // Mostrar mensagem de erro inline em vez de alert
+      if (!window.jspdf) {
         const errorMsg = document.createElement('div');
-        errorMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600;';
-        errorMsg.textContent = 'Erro: Biblioteca PDF não carregada. Tente novamente em alguns segundos.';
+        errorMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
+        errorMsg.textContent = '❌ Biblioteca PDF não carregada. Recarregue a página.';
         document.body.appendChild(errorMsg);
         setTimeout(() => errorMsg.remove(), 5000);
         return;
       }
 
+      // Mostrar indicador de carregamento
+      const loadingMsg = document.createElement('div');
+      loadingMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #667eea; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
+      loadingMsg.innerHTML = '⏳ Gerando PDF...';
+      document.body.appendChild(loadingMsg);
+
       try {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+        // Aguardar um momento para mostrar o loading
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const doc = new window.jspdf.jsPDF();
 
       const config = window.elementSdk ? window.elementSdk.config : defaultConfig;
       const companyName = config.company_name || defaultConfig.company_name;
@@ -1215,22 +1222,33 @@
       doc.setTextColor(100, 100, 100);
       doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 105, 280, { align: 'center' });
 
-        doc.save(`decimo-terceiro-${calculationResult.employeeName.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+        // Gerar o nome do arquivo
+        const fileName = `decimo-terceiro-${calculationResult.employeeName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
         
-        // Mostrar mensagem de sucesso
+        // Salvar o PDF - forçar download
+        doc.save(fileName);
+        
+        // Remover loading e mostrar sucesso
+        loadingMsg.remove();
+        
         const successMsg = document.createElement('div');
-        successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600;';
-        successMsg.textContent = 'PDF gerado com sucesso!';
+        successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
+        successMsg.innerHTML = `✅ PDF baixado: ${fileName}`;
         document.body.appendChild(successMsg);
-        setTimeout(() => successMsg.remove(), 3000);
+        setTimeout(() => successMsg.remove(), 4000);
         
       } catch (error) {
         console.error('Erro ao gerar PDF:', error);
         
+        // Remover loading
+        if (loadingMsg && loadingMsg.parentNode) {
+          loadingMsg.remove();
+        }
+        
         // Mostrar mensagem de erro
         const errorMsg = document.createElement('div');
-        errorMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600;';
-        errorMsg.textContent = 'Erro ao gerar PDF. Tente novamente.';
+        errorMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ef4444; color: white; padding: 1rem; border-radius: 8px; z-index: 1000; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
+        errorMsg.innerHTML = '❌ Erro ao gerar PDF. Tente novamente.';
         document.body.appendChild(errorMsg);
         setTimeout(() => errorMsg.remove(), 5000);
       }
@@ -1239,5 +1257,5 @@
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('calculationDate').value = today;
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'99ad1382d0504fb4',t:'MTc2MjUyMTA4My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'99ad502e11b86252',t:'MTc2MjUyMzU2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
